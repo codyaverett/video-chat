@@ -36,6 +36,10 @@ let currentSocketId = null;
 let currentCallTarget = null;
 let userDisplayName = null;
 let isNameSet = false;
+let isAudioEnabled = true;
+let isVideoEnabled = true;
+let currentCallUserName = null;
+let userMediaStates = new Map(); // Store media states for all users
 
 // Utility functions
 function showError(message) {
@@ -49,7 +53,7 @@ function hideError() {
 }
 
 function updateConnectionStatus(status, message) {
-  connectionStatus.className = `status ${status}`;
+  connectionStatus.className = `status-compact ${status}`;
   connectionStatus.innerHTML = message;
 }
 
@@ -108,6 +112,9 @@ socket.onmessage = (event) => {
     case 'update-user-list':
       updateUserList(data.users);
       break;
+    case 'media-states-update':
+      updateMediaStates(data.states);
+      break;
     case 'call-made':
       handleCallMade(data);
       break;
@@ -162,7 +169,13 @@ function updateUserList(users) {
         </div>
       `;
       
-      li.addEventListener('click', () => callUser(user.id));
+      // Add user ID as data attribute for state updates
+      li.dataset.userId = user.id;
+      
+      li.addEventListener('click', () => {
+        currentCallUserName = user.name;
+        callUser(user.id);
+      });
       userList.appendChild(li);
     });
   }
@@ -184,6 +197,10 @@ function createPeerConnection() {
 
   pc.ontrack = (event) => {
     remoteVideo.srcObject = event.streams[0];
+    // Update remote username when call is established
+    if (currentCallUserName) {
+      updateRemoteUsername(currentCallUserName);
+    }
   };
 
   // Only add tracks if localStream is available
@@ -237,6 +254,8 @@ function handleCallMade(data) {
   
   console.log('Incoming call from:', data.socket);
   currentCallTarget = data.socket;
+  currentCallUserName = data.callerName;
+  updateRemoteUsername(data.callerName);
   peerConnection = createPeerConnection();
   
   peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer))
@@ -308,9 +327,13 @@ function setDisplayName() {
   userDisplayName = name;
   isNameSet = true;
   
-  // Hide name setup and show video container
+  // Hide name setup and show video container and controls
   document.getElementById('name-setup').style.display = 'none';
+  document.getElementById('media-controls').style.display = 'block';
   document.getElementById('video-container').style.display = 'grid';
+  
+  // Update local username display
+  document.getElementById('local-username').textContent = userDisplayName;
   
   // Send displayname to server
   if (socket && socket.readyState === WebSocket.OPEN) {
@@ -340,6 +363,245 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function getInitials(name) {
   return name.split(' ').map(word => word[0]).join('').toUpperCase().substring(0, 2);
+}
+
+// Media control functions
+function toggleAudio() {
+  if (localStream) {
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      isAudioEnabled = !isAudioEnabled;
+      audioTrack.enabled = isAudioEnabled;
+      
+      // Update button states
+      const toggleBtn = document.getElementById('toggle-audio');
+      const localBtn = document.getElementById('local-audio-btn');
+      
+      if (isAudioEnabled) {
+        toggleBtn.innerHTML = '🎤';
+        toggleBtn.classList.remove('muted');
+        localBtn.innerHTML = '🎤';
+        localBtn.classList.remove('muted');
+        toggleBtn.title = 'Mute Microphone';
+        localBtn.title = 'Mute Microphone';
+      } else {
+        toggleBtn.innerHTML = '🔇';
+        toggleBtn.classList.add('muted');
+        localBtn.innerHTML = '🔇';
+        localBtn.classList.add('muted');
+        toggleBtn.title = 'Unmute Microphone';
+        localBtn.title = 'Unmute Microphone';
+      }
+      
+      // Send state change to server
+      sendMediaStateChange(isAudioEnabled, undefined, undefined);
+    }
+  }
+}
+
+function toggleVideo() {
+  if (localStream) {
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      isVideoEnabled = !isVideoEnabled;
+      videoTrack.enabled = isVideoEnabled;
+      
+      // Update button states
+      const toggleBtn = document.getElementById('toggle-video');
+      const localBtn = document.getElementById('local-video-btn');
+      
+      if (isVideoEnabled) {
+        toggleBtn.innerHTML = '📹';
+        toggleBtn.classList.remove('video-off');
+        localBtn.innerHTML = '📹';
+        localBtn.classList.remove('video-off');
+        toggleBtn.title = 'Turn Off Camera';
+        localBtn.title = 'Turn Off Camera';
+      } else {
+        toggleBtn.innerHTML = '📵';
+        toggleBtn.classList.add('video-off');
+        localBtn.innerHTML = '📵';
+        localBtn.classList.add('video-off');
+        toggleBtn.title = 'Turn On Camera';
+        localBtn.title = 'Turn On Camera';
+      }
+      
+      // Send state change to server
+      sendMediaStateChange(undefined, isVideoEnabled, undefined);
+    }
+  }
+}
+
+function applyFilter() {
+  const filterSelect = document.getElementById('video-filter');
+  const localVideo = document.getElementById('local-video');
+  const selectedFilter = filterSelect.value;
+  
+  if (selectedFilter === 'none') {
+    localVideo.style.filter = '';
+  } else {
+    localVideo.style.filter = selectedFilter;
+  }
+  
+  // Send filter change to server
+  sendMediaStateChange(undefined, undefined, selectedFilter);
+}
+
+function updateRemoteUsername(name) {
+  const remoteUsernameEl = document.getElementById('remote-username');
+  remoteUsernameEl.textContent = name || 'Unknown User';
+}
+
+function sendMediaStateChange(audioEnabled, videoEnabled, videoFilter) {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    const message = {
+      type: 'media-state-change'
+    };
+    
+    if (audioEnabled !== undefined) message.audioEnabled = audioEnabled;
+    if (videoEnabled !== undefined) message.videoEnabled = videoEnabled;  
+    if (videoFilter !== undefined) message.videoFilter = videoFilter;
+    
+    socket.send(JSON.stringify(message));
+  }
+}
+
+function updateMediaStates(states) {
+  // Update our local store of media states
+  userMediaStates.clear();
+  states.forEach(state => {
+    userMediaStates.set(state.id, state);
+  });
+  
+  // Update UI for remote user if in a call
+  if (currentCallTarget) {
+    const remoteState = userMediaStates.get(currentCallTarget);
+    if (remoteState) {
+      updateRemoteVideoState(remoteState);
+    }
+  }
+  
+  // Update user list with media states
+  updateUserListWithStates();
+}
+
+function updateRemoteVideoState(remoteState) {
+  const remoteVideo = document.getElementById('remote-video');
+  
+  // Apply filter to remote video
+  if (remoteState.videoFilter && remoteState.videoFilter !== 'none') {
+    remoteVideo.style.filter = remoteState.videoFilter;
+  } else {
+    remoteVideo.style.filter = '';
+  }
+  
+  // Show audio/video status indicators
+  updateRemoteStatusIndicators(remoteState);
+}
+
+function updateRemoteStatusIndicators(remoteState) {
+  // Add status indicators to remote video wrapper
+  const remoteWrapper = document.querySelector('.video-wrapper:has(#remote-video)');
+  
+  // Remove existing indicators
+  const existingIndicators = remoteWrapper.querySelectorAll('.remote-status-indicator');
+  existingIndicators.forEach(indicator => indicator.remove());
+  
+  // Add new indicators
+  const indicators = document.createElement('div');
+  indicators.className = 'remote-status-indicator';
+  indicators.style.cssText = `
+    position: absolute;
+    top: 50px;
+    right: 15px;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  `;
+  
+  if (!remoteState.audioEnabled) {
+    const audioIndicator = document.createElement('div');
+    audioIndicator.innerHTML = '🔇';
+    audioIndicator.style.cssText = `
+      background: rgba(244, 67, 54, 0.9);
+      color: white;
+      padding: 8px;
+      border-radius: 50%;
+      font-size: 16px;
+      backdrop-filter: blur(5px);
+    `;
+    audioIndicator.title = 'Microphone muted';
+    indicators.appendChild(audioIndicator);
+  }
+  
+  if (!remoteState.videoEnabled) {
+    const videoIndicator = document.createElement('div');
+    videoIndicator.innerHTML = '📵';
+    videoIndicator.style.cssText = `
+      background: rgba(244, 67, 54, 0.9);
+      color: white;
+      padding: 8px;
+      border-radius: 50%;
+      font-size: 16px;
+      backdrop-filter: blur(5px);
+    `;
+    videoIndicator.title = 'Camera disabled';
+    indicators.appendChild(videoIndicator);
+  }
+  
+  remoteWrapper.appendChild(indicators);
+}
+
+function updateUserListWithStates() {
+  // This will be called to update user list with media state indicators
+  const userListItems = document.querySelectorAll('.user-item');
+  userListItems.forEach(item => {
+    const userId = item.dataset.userId;
+    if (userId) {
+      const userState = userMediaStates.get(userId);
+      if (userState) {
+        // Remove existing status indicators
+        const existingStatus = item.querySelector('.user-media-status');
+        if (existingStatus) existingStatus.remove();
+        
+        // Add media status indicators
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'user-media-status';
+        statusDiv.style.cssText = `
+          display: flex;
+          gap: 3px;
+          font-size: 12px;
+        `;
+        
+        if (!userState.audioEnabled) {
+          const audioIcon = document.createElement('span');
+          audioIcon.innerHTML = '🔇';
+          audioIcon.title = 'Muted';
+          statusDiv.appendChild(audioIcon);
+        }
+        
+        if (!userState.videoEnabled) {
+          const videoIcon = document.createElement('span');
+          videoIcon.innerHTML = '📵';
+          videoIcon.title = 'Camera off';
+          statusDiv.appendChild(videoIcon);
+        }
+        
+        if (userState.videoFilter && userState.videoFilter !== 'none') {
+          const filterIcon = document.createElement('span');
+          filterIcon.innerHTML = '🎨';
+          filterIcon.title = 'Filter active';
+          statusDiv.appendChild(filterIcon);
+        }
+        
+        const userInfo = item.querySelector('.user-info');
+        if (statusDiv.children.length > 0) {
+          userInfo.appendChild(statusDiv);
+        }
+      }
+    }
+  });
 }
 
 // Initialize the application

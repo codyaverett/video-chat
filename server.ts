@@ -9,6 +9,9 @@ interface User {
   id: string;
   socket: WebSocket;
   name?: string;
+  audioEnabled?: boolean;
+  videoEnabled?: boolean;
+  videoFilter?: string;
 }
 
 const users: Map<string, User> = new Map();
@@ -18,7 +21,10 @@ function handleWebSocket(ws: WebSocket) {
   console.log(`✅ New WebSocket client connected: ${clientId}`);
   const user: User = {
     id: clientId,
-    socket: ws
+    socket: ws,
+    audioEnabled: true,
+    videoEnabled: true,
+    videoFilter: 'none'
   };
   users.set(clientId, user);
   
@@ -48,13 +54,31 @@ function handleWebSocket(ws: WebSocket) {
           broadcastUserList();
         }
         break;
+      case "media-state-change":
+        const mediaUser = users.get(clientId);
+        if (mediaUser) {
+          if (message.audioEnabled !== undefined) {
+            mediaUser.audioEnabled = message.audioEnabled;
+          }
+          if (message.videoEnabled !== undefined) {
+            mediaUser.videoEnabled = message.videoEnabled;
+          }
+          if (message.videoFilter !== undefined) {
+            mediaUser.videoFilter = message.videoFilter;
+          }
+          console.log(`🎛️ User ${clientId} media state: audio=${mediaUser.audioEnabled}, video=${mediaUser.videoEnabled}, filter=${mediaUser.videoFilter}`);
+          broadcastMediaStates();
+        }
+        break;
       case "call-user":
         const targetUser = users.get(message.to);
+        const callingUser = users.get(clientId);
         if (targetUser && targetUser.socket.readyState === WebSocket.OPEN) {
           targetUser.socket.send(JSON.stringify({
             type: "call-made",
             offer: message.offer,
             socket: clientId,
+            callerName: callingUser?.name || 'Unknown User'
           }));
         }
         break;
@@ -97,7 +121,10 @@ function handleWebSocket(ws: WebSocket) {
 function broadcastUserList() {
   const userList = Array.from(users.values()).map(user => ({
     id: user.id,
-    name: user.name
+    name: user.name,
+    audioEnabled: user.audioEnabled,
+    videoEnabled: user.videoEnabled,
+    videoFilter: user.videoFilter
   }));
   
   users.forEach(user => {
@@ -105,6 +132,24 @@ function broadcastUserList() {
       user.socket.send(JSON.stringify({
         type: "update-user-list",
         users: userList,
+      }));
+    }
+  });
+}
+
+function broadcastMediaStates() {
+  const mediaStates = Array.from(users.values()).map(user => ({
+    id: user.id,
+    audioEnabled: user.audioEnabled,
+    videoEnabled: user.videoEnabled,
+    videoFilter: user.videoFilter
+  }));
+  
+  users.forEach(user => {
+    if (user.socket.readyState === WebSocket.OPEN) {
+      user.socket.send(JSON.stringify({
+        type: "media-states-update",
+        states: mediaStates,
       }));
     }
   });
