@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Video Chat Client</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .log { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; margin: 10px 0; }
+        .status { padding: 5px; margin: 5px 0; border-radius: 3px; }
+        .connected { background: #d4edda; }
+        .error { background: #f8d7da; }
+        button { padding: 10px; margin: 5px; }
+        video { width: 200px; height: 150px; background: #000; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Video Chat Client</h1>
+    
+    <div>
+        <button onclick="requestMedia()">Request Camera/Mic</button>
+        <button onclick="testCallFunction()">Test Call Function</button>
+    </div>
+    
+    <div id="status" class="status">Initializing...</div>
+    <div id="error" class="error" style="display: none;"></div>
+    
+    <div>
+        <video id="local-video" autoplay playsinline muted></video>
+        <video id="remote-video" autoplay playsinline></video>
+    </div>
+    
+    <div>
+        <h3>Users:</h3>
+        <ul id="user-list"></ul>
+    </div>
+    
+    <div>
+        <h3>Debug Log:</h3>
+        <div id="log" class="log"></div>
+    </div>
+    
+    <script>
+        let socket;
+        let localStream;
+        let currentSocketId = null;
+        
+        const statusEl = document.getElementById('status');
+        const errorEl = document.getElementById('error');
+        const logEl = document.getElementById('log');
+        const userListEl = document.getElementById('user-list');
+        const localVideo = document.getElementById('local-video');
+        
+        function log(message) {
+            console.log(message);
+            logEl.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        function showError(message) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            log('ERROR: ' + message);
+        }
+        
+        function hideError() {
+            errorEl.style.display = 'none';
+        }
+        
+        async function initializeConnection() {
+            try {
+                log('Fetching server config...');
+                const response = await fetch('/config');
+                const config = await response.json();
+                log('Config: ' + JSON.stringify(config));
+                
+                const wsUrl = `ws://localhost:${config.wsPort}`;
+                log('Connecting to: ' + wsUrl);
+                
+                socket = new WebSocket(wsUrl);
+                
+                socket.onopen = () => {
+                    log('WebSocket connected');
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'status connected';
+                };
+                
+                socket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    log('Received: ' + data.type + ' - ' + JSON.stringify(data));
+                    
+                    switch (data.type) {
+                        case 'client-id':
+                            currentSocketId = data.id;
+                            log('My ID: ' + currentSocketId);
+                            break;
+                        case 'update-user-list':
+                            updateUserList(data.sockets);
+                            break;
+                        case 'call-made':
+                            log('Incoming call from: ' + data.socket);
+                            break;
+                    }
+                };
+                
+                socket.onerror = (error) => {
+                    log('WebSocket error: ' + error);
+                    showError('Connection failed');
+                };
+                
+                socket.onclose = () => {
+                    log('WebSocket closed');
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'status error';
+                };
+                
+            } catch (error) {
+                log('Failed to initialize: ' + error.message);
+                showError('Initialization failed');
+            }
+        }
+        
+        function updateUserList(sockets) {
+            log('Updating user list: ' + JSON.stringify(sockets));
+            userListEl.innerHTML = '';
+            
+            sockets.forEach(id => {
+                if (id !== currentSocketId) {
+                    const li = document.createElement('li');
+                    const button = document.createElement('button');
+                    button.textContent = `Call ${id.substring(0, 8)}`;
+                    button.onclick = () => callUser(id);
+                    li.appendChild(button);
+                    userListEl.appendChild(li);
+                }
+            });
+        }
+        
+        async function requestMedia() {
+            try {
+                log('Requesting camera/microphone...');
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+                log('Media access granted');
+                hideError();
+            } catch (error) {
+                log('Media access failed: ' + error.message);
+                showError('Media access failed: ' + error.message);
+            }
+        }
+        
+        function callUser(targetId) {
+            log('Attempting to call user: ' + targetId);
+            
+            if (!localStream) {
+                log('ERROR: No local stream available');
+                showError('Camera/microphone not available');
+                return;
+            }
+            
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                log('ERROR: WebSocket not connected');
+                showError('Not connected to server');
+                return;
+            }
+            
+            log('Sending call offer to: ' + targetId);
+            socket.send(JSON.stringify({
+                type: 'call-user',
+                offer: { type: 'offer', sdp: 'test-offer-sdp' },
+                to: targetId
+            }));
+        }
+        
+        function testCallFunction() {
+            log('Testing call function with fake target...');
+            callUser('test-user-id-12345');
+        }
+        
+        // Initialize on load
+        window.onload = () => {
+            log('Page loaded, initializing...');
+            initializeConnection();
+            
+            // Auto-request media after 2 seconds
+            setTimeout(() => {
+                log('Auto-requesting media...');
+                requestMedia();
+            }, 2000);
+        };
+    </script>
+</body>
+</html>

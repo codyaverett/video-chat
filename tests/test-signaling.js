@@ -3,10 +3,21 @@ import { assert } from "@std/assert";
 
 console.log('🧪 Testing Signaling (Call/Answer)...');
 
+async function getServerConfig() {
+  try {
+    const response = await fetch('http://localhost:8001/config');
+    return await response.json();
+  } catch {
+    return { wsPort: 5001, useHTTPS: false };
+  }
+}
+
 async function testSignaling() {
-  return new Promise((resolve, reject) => {
-    const client1 = new WebSocket('ws://localhost:5001');
-    const client2 = new WebSocket('ws://localhost:5001');
+  return new Promise(async (resolve, reject) => {
+    const config = await getServerConfig();
+    const wsUrl = `ws://localhost:${config.wsPort}`;
+    const client1 = new WebSocket(wsUrl);
+    const client2 = new WebSocket(wsUrl);
     
     let client1Id = null;
     let client2Id = null;

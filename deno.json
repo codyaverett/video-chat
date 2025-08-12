@@ -1,6 +1,10 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-read server.ts",
+    "dev": "deno run --allow-net --allow-read --allow-env server.ts",
+    "dev:https": "deno run --allow-net --allow-read --allow-env server.ts",
+    "dev:custom": "HTTP_PORT=3000 WS_PORT=3001 deno run --allow-net --allow-read --allow-env server.ts",
+    "stop": "pkill -f 'deno.*server.ts' || echo 'No servers running'",
+    "cert": "./generate-cert.sh",
     "test": "deno run --allow-net --allow-run tests/run-all-tests.js",
     "test:connection": "deno run --allow-net tests/test-connection.js",
     "test:signaling": "deno run --allow-net tests/test-signaling.js",

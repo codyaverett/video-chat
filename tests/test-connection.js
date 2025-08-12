@@ -3,9 +3,21 @@ import { assert } from "@std/assert";
 
 console.log('🧪 Testing WebSocket Connection...');
 
+async function getServerConfig() {
+  try {
+    const response = await fetch('http://localhost:8001/config');
+    return await response.json();
+  } catch {
+    // Fallback to default config
+    return { wsPort: 5001, useHTTPS: false };
+  }
+}
+
 async function testConnection() {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket('ws://localhost:5001');
+  return new Promise(async (resolve, reject) => {
+    const config = await getServerConfig();
+    const wsUrl = `ws://localhost:${config.wsPort}`;
+    const ws = new WebSocket(wsUrl);
     let clientId = null;
     let receivedUserList = false;
     

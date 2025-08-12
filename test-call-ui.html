@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Call UI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .client { border: 1px solid #ccc; padding: 20px; margin: 10px 0; }
+        .status { padding: 5px; margin: 5px 0; border-radius: 3px; }
+        .connected { background: #d4edda; }
+        .error { background: #f8d7da; }
+        button { padding: 8px 12px; margin: 5px; }
+        .user-list { margin: 10px 0; }
+        .user-item { padding: 5px; background: #007bff; color: white; margin: 2px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Video Chat UI Test</h1>
+    
+    <div class="client">
+        <h3>Client 1</h3>
+        <div id="status1" class="status">Connecting...</div>
+        <div id="error1" class="error" style="display: none;"></div>
+        <div id="users1" class="user-list"></div>
+    </div>
+    
+    <div class="client">
+        <h3>Client 2</h3>
+        <div id="status2" class="status">Connecting...</div>
+        <div id="error2" class="error" style="display: none;"></div>
+        <div id="users2" class="user-list"></div>
+    </div>
+    
+    <script>
+        class TestClient {
+            constructor(clientId, statusEl, errorEl, usersEl) {
+                this.clientId = clientId;
+                this.statusEl = statusEl;
+                this.errorEl = errorEl;
+                this.usersEl = usersEl;
+                this.ws = null;
+                this.myId = null;
+                this.connect();
+            }
+            
+            async connect() {
+                try {
+                    const response = await fetch('http://localhost:8001/config');
+                    const config = await response.json();
+                    const wsUrl = `ws://localhost:${config.wsPort}`;
+                    
+                    this.ws = new WebSocket(wsUrl);
+                    
+                    this.ws.onopen = () => {
+                        this.updateStatus('Connected', 'connected');
+                        this.hideError();
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        console.log(`Client ${this.clientId} received:`, data);
+                        
+                        switch (data.type) {
+                            case 'client-id':
+                                this.myId = data.id;
+                                this.updateStatus(`Connected as ${data.id.substring(0, 8)}`, 'connected');
+                                break;
+                            case 'update-user-list':
+                                this.updateUserList(data.sockets);
+                                break;
+                            case 'call-made':
+                                console.log(`${this.clientId} received call from ${data.socket}`);
+                                this.simulateAnswer(data);
+                                break;
+                            case 'answer-made':
+                                console.log(`${this.clientId} call answered by ${data.socket}`);
+                                break;
+                            case 'ice-candidate':
+                                console.log(`${this.clientId} received ICE candidate from ${data.socket}`);
+                                break;
+                        }
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        this.updateStatus('Connection Error', 'error');
+                        this.showError('Failed to connect to server');
+                    };
+                    
+                    this.ws.onclose = () => {
+                        this.updateStatus('Disconnected', 'error');
+                        this.showError('Connection lost');
+                    };
+                    
+                } catch (error) {
+                    this.showError('Failed to get config: ' + error.message);
+                }
+            }
+            
+            updateStatus(message, type) {
+                this.statusEl.textContent = message;
+                this.statusEl.className = `status ${type}`;
+            }
+            
+            showError(message) {
+                this.errorEl.textContent = message;
+                this.errorEl.style.display = 'block';
+            }
+            
+            hideError() {
+                this.errorEl.style.display = 'none';
+            }
+            
+            updateUserList(sockets) {
+                this.usersEl.innerHTML = '';
+                sockets.forEach(id => {
+                    if (id !== this.myId) {
+                        const div = document.createElement('div');
+                        div.className = 'user-item';
+                        div.textContent = `Call ${id.substring(0, 8)}`;
+                        div.onclick = () => this.makeCall(id);
+                        this.usersEl.appendChild(div);
+                    }
+                });
+            }
+            
+            makeCall(targetId) {
+                console.log(`${this.clientId} calling ${targetId}`);
+                this.ws.send(JSON.stringify({
+                    type: 'call-user',
+                    offer: { type: 'offer', sdp: 'mock-offer' },
+                    to: targetId
+                }));
+            }
+            
+            simulateAnswer(data) {
+                console.log(`${this.clientId} answering call from ${data.socket}`);
+                this.ws.send(JSON.stringify({
+                    type: 'make-answer',
+                    answer: { type: 'answer', sdp: 'mock-answer' },
+                    to: data.socket
+                }));
+            }
+        }
+        
+        // Create test clients
+        const client1 = new TestClient(1, 
+            document.getElementById('status1'),
+            document.getElementById('error1'),
+            document.getElementById('users1')
+        );
+        
+        const client2 = new TestClient(2,
+            document.getElementById('status2'),
+            document.getElementById('error2'),
+            document.getElementById('users2')
+        );
+    </script>
+</body>
+</html>
