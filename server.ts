@@ -4,12 +4,22 @@ import { serve, serveTls } from "https://deno.land/std@0.224.0/http/server.ts";
 const HTTP_PORT = parseInt(Deno.env.get("HTTP_PORT") || "8001");
 const HOSTNAME = Deno.env.get("HOSTNAME") || "0.0.0.0";
 
-const sockets: Map<string, WebSocket> = new Map();
+interface User {
+  id: string;
+  socket: WebSocket;
+  name?: string;
+}
+
+const users: Map<string, User> = new Map();
 
 function handleWebSocket(ws: WebSocket) {
   const clientId = crypto.randomUUID();
   console.log(`✅ New WebSocket client connected: ${clientId}`);
-  sockets.set(clientId, ws);
+  const user: User = {
+    id: clientId,
+    socket: ws
+  };
+  users.set(clientId, user);
   
   // Use setTimeout to ensure WebSocket is ready
   setTimeout(() => {
@@ -29,10 +39,18 @@ function handleWebSocket(ws: WebSocket) {
   ws.onmessage = (event) => {
     const message = JSON.parse(event.data);
     switch (message.type) {
+      case "set-displayname":
+        const user = users.get(clientId);
+        if (user) {
+          user.name = message.name;
+          console.log(`👤 User ${clientId} set name: ${message.name}`);
+          broadcastUserList();
+        }
+        break;
       case "call-user":
-        const targetWs = sockets.get(message.to);
-        if (targetWs && targetWs.readyState === WebSocket.OPEN) {
-          targetWs.send(JSON.stringify({
+        const targetUser = users.get(message.to);
+        if (targetUser && targetUser.socket.readyState === WebSocket.OPEN) {
+          targetUser.socket.send(JSON.stringify({
             type: "call-made",
             offer: message.offer,
             socket: clientId,
@@ -40,9 +58,9 @@ function handleWebSocket(ws: WebSocket) {
         }
         break;
       case "make-answer":
-        const answerWs = sockets.get(message.to);
-        if (answerWs && answerWs.readyState === WebSocket.OPEN) {
-          answerWs.send(JSON.stringify({
+        const answerUser = users.get(message.to);
+        if (answerUser && answerUser.socket.readyState === WebSocket.OPEN) {
+          answerUser.socket.send(JSON.stringify({
             type: "answer-made",
             answer: message.answer,
             socket: clientId,
@@ -50,9 +68,9 @@ function handleWebSocket(ws: WebSocket) {
         }
         break;
       case "ice-candidate":
-        const candidateWs = sockets.get(message.to);
-        if (candidateWs && candidateWs.readyState === WebSocket.OPEN) {
-          candidateWs.send(JSON.stringify({
+        const candidateUser = users.get(message.to);
+        if (candidateUser && candidateUser.socket.readyState === WebSocket.OPEN) {
+          candidateUser.socket.send(JSON.stringify({
             type: "ice-candidate",
             candidate: message.candidate,
             socket: clientId,
@@ -63,24 +81,31 @@ function handleWebSocket(ws: WebSocket) {
   };
 
   ws.onclose = () => {
-    sockets.delete(clientId);
+    users.delete(clientId);
+    console.log(`❌ User disconnected: ${clientId}`);
     broadcastUserList();
   };
 
   ws.onerror = (error) => {
     console.error('WebSocket error:', error);
-    sockets.delete(clientId);
+    users.delete(clientId);
     broadcastUserList();
   };
 }
 
 function broadcastUserList() {
-  const userList = Array.from(sockets.keys());
-  sockets.forEach(client => {
-    client.send(JSON.stringify({
-      type: "update-user-list",
-      sockets: userList,
-    }));
+  const userList = Array.from(users.values()).map(user => ({
+    id: user.id,
+    name: user.name
+  }));
+  
+  users.forEach(user => {
+    if (user.socket.readyState === WebSocket.OPEN) {
+      user.socket.send(JSON.stringify({
+        type: "update-user-list",
+        users: userList,
+      }));
+    }
   });
 }
 
