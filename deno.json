@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read server.ts",
+    "test": "deno run --allow-net --allow-run tests/run-all-tests.js",
+    "test:connection": "deno run --allow-net tests/test-connection.js",
+    "test:signaling": "deno run --allow-net tests/test-signaling.js",
+    "test:ice": "deno run --allow-net tests/test-ice-candidates.js"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1"
+  }
+}
