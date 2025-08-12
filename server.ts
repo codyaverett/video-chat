@@ -12,9 +12,19 @@ interface User {
   audioEnabled?: boolean;
   videoEnabled?: boolean;
   videoFilter?: string;
+  currentRoom?: string;
+}
+
+interface Room {
+  id: string;
+  name: string;
+  participants: Set<string>;
+  createdAt: Date;
+  createdBy: string;
 }
 
 const users: Map<string, User> = new Map();
+const rooms: Map<string, Room> = new Map();
 
 function handleWebSocket(ws: WebSocket) {
   const clientId = crypto.randomUUID();
@@ -70,7 +80,142 @@ function handleWebSocket(ws: WebSocket) {
           broadcastMediaStates();
         }
         break;
+      case "create-room":
+        const creatingUser = users.get(clientId);
+        
+        // Leave current room if in one
+        if (creatingUser?.currentRoom) {
+          leaveRoom(clientId, creatingUser.currentRoom);
+        }
+        
+        const roomId = crypto.randomUUID();
+        const room: Room = {
+          id: roomId,
+          name: message.roomName || `Room ${roomId.substring(0, 8)}`,
+          participants: new Set([clientId]),
+          createdAt: new Date(),
+          createdBy: clientId
+        };
+        rooms.set(roomId, room);
+        
+        if (creatingUser) {
+          creatingUser.currentRoom = roomId;
+        }
+        
+        console.log(`🏠 User ${clientId} created room: ${room.name} (${roomId})`);
+        ws.send(JSON.stringify({
+          type: "room-created",
+          room: {
+            id: room.id,
+            name: room.name,
+            participants: Array.from(room.participants),
+            participantDetails: Array.from(room.participants).map(id => {
+              const user = users.get(id);
+              return { id: id, name: user?.name || 'Unknown' };
+            })
+          }
+        }));
+        broadcastRoomList();
+        break;
+      case "join-room":
+        const targetRoom = rooms.get(message.roomId);
+        const joiningUser = users.get(clientId);
+        
+        if (targetRoom && joiningUser) {
+          // Leave current room if in one
+          if (joiningUser.currentRoom) {
+            leaveRoom(clientId, joiningUser.currentRoom);
+          }
+          
+          targetRoom.participants.add(clientId);
+          joiningUser.currentRoom = message.roomId;
+          
+          console.log(`🚪 User ${clientId} joined room: ${targetRoom.name}`);
+          
+          // Notify user they joined
+          ws.send(JSON.stringify({
+            type: "room-joined",
+            room: {
+              id: targetRoom.id,
+              name: targetRoom.name,
+              participants: Array.from(targetRoom.participants),
+              participantDetails: Array.from(targetRoom.participants).map(id => {
+                const user = users.get(id);
+                return { id: id, name: user?.name || 'Unknown' };
+              })
+            }
+          }));
+          
+          // Notify all participants about new user
+          broadcastToRoom(message.roomId, {
+            type: "user-joined-room",
+            userId: clientId,
+            userName: joiningUser.name,
+            room: {
+              id: targetRoom.id,
+              name: targetRoom.name,
+              participants: Array.from(targetRoom.participants),
+              participantDetails: Array.from(targetRoom.participants).map(id => {
+                const user = users.get(id);
+                return { id: id, name: user?.name || 'Unknown' };
+              })
+            }
+          });
+          
+          broadcastRoomList();
+        }
+        break;
+      case "leave-room":
+        if (users.get(clientId)?.currentRoom) {
+          leaveRoom(clientId, users.get(clientId)!.currentRoom!);
+        }
+        break;
+      case "webrtc-offer":
+        // Handle WebRTC offers - can be for rooms or direct calls
+        if (message.roomId) {
+          // Broadcast to all other participants in the room
+          broadcastToRoom(message.roomId, {
+            type: "webrtc-offer",
+            offer: message.offer,
+            from: clientId,
+            fromName: users.get(clientId)?.name || 'Unknown User',
+            to: message.to
+          }, [clientId]); // Exclude sender
+        } else {
+          // Direct call (legacy support)
+          const targetUser = users.get(message.to);
+          if (targetUser && targetUser.socket.readyState === WebSocket.OPEN) {
+            targetUser.socket.send(JSON.stringify({
+              type: "webrtc-offer",
+              offer: message.offer,
+              from: clientId,
+              fromName: users.get(clientId)?.name || 'Unknown User'
+            }));
+          }
+        }
+        break;
+      case "webrtc-answer":
+        const answerUser = users.get(message.to);
+        if (answerUser && answerUser.socket.readyState === WebSocket.OPEN) {
+          answerUser.socket.send(JSON.stringify({
+            type: "webrtc-answer",
+            answer: message.answer,
+            from: clientId,
+          }));
+        }
+        break;
+      case "webrtc-ice-candidate":
+        const candidateUser = users.get(message.to);
+        if (candidateUser && candidateUser.socket.readyState === WebSocket.OPEN) {
+          candidateUser.socket.send(JSON.stringify({
+            type: "webrtc-ice-candidate",
+            candidate: message.candidate,
+            from: clientId,
+          }));
+        }
+        break;
       case "call-user":
+        // Legacy 1-to-1 call support
         const targetUser = users.get(message.to);
         const callingUser = users.get(clientId);
         if (targetUser && targetUser.socket.readyState === WebSocket.OPEN) {
@@ -83,9 +228,10 @@ function handleWebSocket(ws: WebSocket) {
         }
         break;
       case "make-answer":
-        const answerUser = users.get(message.to);
-        if (answerUser && answerUser.socket.readyState === WebSocket.OPEN) {
-          answerUser.socket.send(JSON.stringify({
+        // Legacy 1-to-1 call support
+        const legacyAnswerUser = users.get(message.to);
+        if (legacyAnswerUser && legacyAnswerUser.socket.readyState === WebSocket.OPEN) {
+          legacyAnswerUser.socket.send(JSON.stringify({
             type: "answer-made",
             answer: message.answer,
             socket: clientId,
@@ -93,9 +239,10 @@ function handleWebSocket(ws: WebSocket) {
         }
         break;
       case "ice-candidate":
-        const candidateUser = users.get(message.to);
-        if (candidateUser && candidateUser.socket.readyState === WebSocket.OPEN) {
-          candidateUser.socket.send(JSON.stringify({
+        // Legacy 1-to-1 call support
+        const legacyCandidateUser = users.get(message.to);
+        if (legacyCandidateUser && legacyCandidateUser.socket.readyState === WebSocket.OPEN) {
+          legacyCandidateUser.socket.send(JSON.stringify({
             type: "ice-candidate",
             candidate: message.candidate,
             socket: clientId,
@@ -106,6 +253,12 @@ function handleWebSocket(ws: WebSocket) {
   };
 
   ws.onclose = () => {
+    // Leave current room if in one
+    const disconnectingUser = users.get(clientId);
+    if (disconnectingUser?.currentRoom) {
+      leaveRoom(clientId, disconnectingUser.currentRoom);
+    }
+    
     users.delete(clientId);
     console.log(`❌ User disconnected: ${clientId}`);
     broadcastUserList();
@@ -113,6 +266,13 @@ function handleWebSocket(ws: WebSocket) {
 
   ws.onerror = (error) => {
     console.error('WebSocket error:', error);
+    
+    // Leave current room if in one
+    const errorUser = users.get(clientId);
+    if (errorUser?.currentRoom) {
+      leaveRoom(clientId, errorUser.currentRoom);
+    }
+    
     users.delete(clientId);
     broadcastUserList();
   };
@@ -150,6 +310,78 @@ function broadcastMediaStates() {
       user.socket.send(JSON.stringify({
         type: "media-states-update",
         states: mediaStates,
+      }));
+    }
+  });
+}
+
+function leaveRoom(userId: string, roomId: string) {
+  const room = rooms.get(roomId);
+  const user = users.get(userId);
+  
+  if (room && user) {
+    room.participants.delete(userId);
+    user.currentRoom = undefined;
+    
+    console.log(`🚪 User ${userId} left room: ${room.name}`);
+    
+    // If room is empty, delete it
+    if (room.participants.size === 0) {
+      rooms.delete(roomId);
+      console.log(`🗑️ Deleted empty room: ${room.name}`);
+    } else {
+      // Notify remaining participants
+      broadcastToRoom(roomId, {
+        type: "user-left-room",
+        userId: userId,
+        userName: user.name,
+        room: {
+          id: room.id,
+          name: room.name,
+          participants: Array.from(room.participants)
+        }
+      });
+    }
+    
+    broadcastRoomList();
+  }
+}
+
+function broadcastToRoom(roomId: string, message: any, excludeUsers: string[] = []) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  
+  room.participants.forEach(participantId => {
+    if (excludeUsers.includes(participantId)) return;
+    
+    const user = users.get(participantId);
+    if (user && user.socket.readyState === WebSocket.OPEN) {
+      user.socket.send(JSON.stringify(message));
+    }
+  });
+}
+
+function broadcastRoomList() {
+  const roomList = Array.from(rooms.values()).map(room => ({
+    id: room.id,
+    name: room.name,
+    participantCount: room.participants.size,
+    participants: Array.from(room.participants).map(id => {
+      const user = users.get(id);
+      return {
+        id: id,
+        name: user?.name || 'Unknown'
+      };
+    }),
+    createdAt: room.createdAt,
+    createdBy: room.createdBy
+  }));
+  
+  users.forEach(user => {
+    if (user.socket.readyState === WebSocket.OPEN) {
+      user.socket.send(JSON.stringify({
+        type: "room-list-update",
+        rooms: roomList,
       }));
     }
   });
