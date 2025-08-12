@@ -3,6 +3,7 @@ import { serve, serveTls } from "https://deno.land/std@0.224.0/http/server.ts";
 // Configuration
 const HTTP_PORT = parseInt(Deno.env.get("HTTP_PORT") || "8001");
 const HOSTNAME = Deno.env.get("HOSTNAME") || "0.0.0.0";
+const EXTERNAL_DOMAIN = Deno.env.get("EXTERNAL_DOMAIN") || null;
 
 interface User {
   id: string;
@@ -111,8 +112,9 @@ function broadcastUserList() {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+  "Access-Control-Allow-Credentials": "true",
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -231,13 +233,23 @@ console.log("═".repeat(50));
 if (useHTTPS) {
   console.log(`📱 Local access:      https://localhost:${HTTP_PORT}`);
   console.log(`🌐 Network access:    https://${localIP}:${HTTP_PORT}`);
+  if (EXTERNAL_DOMAIN) {
+    console.log(`🌍 External domain:   https://${EXTERNAL_DOMAIN}:${HTTP_PORT}`);
+  }
   console.log(`🔌 WebSocket:         wss://${localIP}:${HTTP_PORT} (integrated)`);
   console.log(`🔒 HTTPS enabled (self-signed certificate)`);
 } else {
   console.log(`📱 Local access:      http://localhost:${HTTP_PORT}`);
   console.log(`🌐 Network access:    http://${localIP}:${HTTP_PORT}`);
+  if (EXTERNAL_DOMAIN) {
+    console.log(`🌍 External domain:   http://${EXTERNAL_DOMAIN}:${HTTP_PORT}`);
+  }
   console.log(`🔌 WebSocket:         ws://${localIP}:${HTTP_PORT} (integrated)`);
   console.log(`⚠️  HTTP only - run ./generate-cert.sh for HTTPS`);
+}
+if (EXTERNAL_DOMAIN) {
+  console.log(`ℹ️  To use external domain, ensure DNS points to this server`);
+  console.log(`ℹ️  Set EXTERNAL_DOMAIN env var and regenerate certificates if needed`);
 }
 console.log("═".repeat(50));
 
