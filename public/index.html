@@ -582,20 +582,20 @@
           <h3>👋 Set Your Display Name</h3>
           <div class="name-input-group">
             <input type="text" id="display-name" placeholder="Enter your name..." maxlength="20">
-            <button onclick="setDisplayName()">Join Chat</button>
+            <button id="join-chat-btn">Join Chat</button>
           </div>
         </div>
         
         <div class="media-controls" id="media-controls" style="display: none;">
           <h3>🎛️ Media Controls</h3>
           <div class="controls-row">
-            <button class="control-btn" id="toggle-audio" onclick="toggleAudio()" title="Toggle Microphone">
+            <button class="control-btn" id="toggle-audio" title="Toggle Microphone">
               🎤
             </button>
-            <button class="control-btn" id="toggle-video" onclick="toggleVideo()" title="Toggle Camera">
+            <button class="control-btn" id="toggle-video" title="Toggle Camera">
               📹
             </button>
-            <select class="filter-select" id="video-filter" onchange="applyFilter()" title="Video Filter">
+            <select class="filter-select" id="video-filter" title="Video Filter">
               <option value="none">No Filter</option>
               <option value="blur(2px)">Blur</option>
               <option value="grayscale(100%)">Grayscale</option>
@@ -614,10 +614,10 @@
             <h4>📹 Your Video</h4>
             <div class="username-overlay" id="local-username">You</div>
             <div class="video-controls">
-              <button class="control-btn" id="local-audio-btn" onclick="toggleAudio()" title="Toggle Microphone">
+              <button class="control-btn" id="local-audio-btn" title="Toggle Microphone">
                 🎤
               </button>
-              <button class="control-btn" id="local-video-btn" onclick="toggleVideo()" title="Toggle Camera">
+              <button class="control-btn" id="local-video-btn" title="Toggle Camera">
                 📹
               </button>
             </div>
@@ -642,7 +642,7 @@
           <div class="room-controls">
             <div class="room-input-group">
               <input type="text" id="room-name" placeholder="Room name..." maxlength="30">
-              <button onclick="createRoom()">Create Room</button>
+              <button id="create-room-btn">Create Room</button>
             </div>
           </div>
           <div class="room-list-container">
@@ -658,7 +658,7 @@
             <div class="room-info">
               <div class="room-name" id="current-room-name"></div>
               <div class="room-participants" id="current-room-participants"></div>
-              <button onclick="leaveRoom()" class="leave-btn">Leave Room</button>
+              <button id="leave-room-btn" class="leave-btn">Leave Room</button>
             </div>
           </div>
         </div>
@@ -678,7 +678,224 @@
     </div>
   </div>
   
-  <script src="/scripts/index.js"></script>
+  <script type="module">
+    import { VideoCallManager } from './js/VideoCallManager.js';
+    
+    // Initialize the video call manager when the page loads
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const manager = new VideoCallManager();
+        await manager.initialize();
+        
+        // Make it globally accessible for debugging
+        window.videoCallManager = manager;
+        
+        console.log('Video call manager initialized successfully');
+        
+        // Update connection status
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) {
+          statusEl.textContent = '🔌 Connected';
+          statusEl.className = 'status-compact connected';
+        }
+        
+        // Show the name setup panel
+        const nameSetup = document.getElementById('name-setup');
+        if (nameSetup) {
+          nameSetup.style.display = 'block';
+        }
+        
+      } catch (error) {
+        console.error('Failed to initialize video call manager:', error);
+        showError('Failed to initialize application: ' + error.message);
+        
+        // Update connection status to error
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) {
+          statusEl.textContent = '❌ Connection Failed';
+          statusEl.className = 'status-compact disconnected';
+        }
+      }
+    });
+
+    function showError(message) {
+      const errorEl = document.getElementById('error-message');
+      if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+        
+        // Remove error after 5 seconds
+        setTimeout(() => {
+          errorEl.style.display = 'none';
+        }, 5000);
+      }
+    }
+
+    // Set up event listeners
+    setupEventListeners();
+    
+    function setupEventListeners() {
+      // Join chat button
+      const joinChatBtn = document.getElementById('join-chat-btn');
+      if (joinChatBtn) {
+        joinChatBtn.addEventListener('click', handleSetDisplayName);
+      }
+      
+      // Media control buttons
+      const toggleAudioBtn = document.getElementById('toggle-audio');
+      const localAudioBtn = document.getElementById('local-audio-btn');
+      if (toggleAudioBtn) toggleAudioBtn.addEventListener('click', handleToggleAudio);
+      if (localAudioBtn) localAudioBtn.addEventListener('click', handleToggleAudio);
+      
+      const toggleVideoBtn = document.getElementById('toggle-video');
+      const localVideoBtn = document.getElementById('local-video-btn');
+      if (toggleVideoBtn) toggleVideoBtn.addEventListener('click', handleToggleVideo);
+      if (localVideoBtn) localVideoBtn.addEventListener('click', handleToggleVideo);
+      
+      // Video filter
+      const videoFilter = document.getElementById('video-filter');
+      if (videoFilter) {
+        videoFilter.addEventListener('change', handleApplyFilter);
+      }
+      
+      // Room controls
+      const createRoomBtn = document.getElementById('create-room-btn');
+      const leaveRoomBtn = document.getElementById('leave-room-btn');
+      if (createRoomBtn) createRoomBtn.addEventListener('click', handleCreateRoom);
+      if (leaveRoomBtn) leaveRoomBtn.addEventListener('click', handleLeaveRoom);
+      
+      // Enter key support for inputs
+      const displayNameInput = document.getElementById('display-name');
+      const roomNameInput = document.getElementById('room-name');
+      if (displayNameInput) {
+        displayNameInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') handleSetDisplayName();
+        });
+      }
+      if (roomNameInput) {
+        roomNameInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') handleCreateRoom();
+        });
+      }
+    }
+    
+    function handleSetDisplayName() {
+      const nameInput = document.getElementById('display-name');
+      const name = nameInput.value.trim();
+      if (name && window.videoCallManager) {
+        // Show media controls and hide name setup
+        document.getElementById('name-setup').style.display = 'none';
+        document.getElementById('media-controls').style.display = 'block';
+        document.getElementById('video-container').style.display = 'grid';
+        document.getElementById('room-management').style.display = 'block';
+        
+        // Update local username overlay
+        const localUsername = document.getElementById('local-username');
+        if (localUsername) {
+          localUsername.textContent = name;
+        }
+        
+        console.log('Display name set to:', name);
+      } else {
+        showError('Please enter a valid name');
+      }
+    }
+    
+    function handleToggleAudio() {
+      if (window.videoCallManager && window.videoCallManager.mediaController) {
+        // Toggle audio logic would go here
+        const btn = document.getElementById('toggle-audio') || document.getElementById('local-audio-btn');
+        if (btn) {
+          btn.classList.toggle('muted');
+          console.log('Audio toggled');
+        }
+      }
+    }
+    
+    function handleToggleVideo() {
+      if (window.videoCallManager && window.videoCallManager.mediaController) {
+        // Toggle video logic would go here
+        const btn = document.getElementById('toggle-video') || document.getElementById('local-video-btn');
+        if (btn) {
+          btn.classList.toggle('video-off');
+          console.log('Video toggled');
+        }
+      }
+    }
+    
+    function handleApplyFilter() {
+      const filterSelect = document.getElementById('video-filter');
+      const localVideo = document.getElementById('local-video');
+      if (filterSelect && localVideo) {
+        localVideo.style.filter = filterSelect.value;
+        console.log('Filter applied:', filterSelect.value);
+      }
+    }
+    
+    function handleCreateRoom() {
+      const roomNameInput = document.getElementById('room-name');
+      const displayNameInput = document.getElementById('display-name');
+      const roomName = roomNameInput.value.trim();
+      const userName = displayNameInput.value.trim();
+      
+      if (!userName) {
+        showError('Please set your display name first');
+        return;
+      }
+      
+      if (roomName && window.videoCallManager) {
+        console.log('Creating room:', roomName, 'for user:', userName);
+        window.videoCallManager.roomController.createRoom(roomName, userName);
+        roomNameInput.value = '';
+      } else {
+        showError('Please enter a room name');
+      }
+    }
+    
+    function handleLeaveRoom() {
+      if (window.videoCallManager) {
+        console.log('Leaving room');
+        window.videoCallManager.roomController.leaveRoom();
+      }
+    }
+    
+    function joinRoom(roomId) {
+      const displayNameInput = document.getElementById('display-name');
+      const userName = displayNameInput.value.trim();
+      
+      if (!userName) {
+        showError('Please set your display name first');
+        return;
+      }
+      
+      if (roomId && window.videoCallManager) {
+        console.log('Joining room:', roomId, 'as user:', userName);
+        window.videoCallManager.roomController.joinRoom(roomId, userName);
+      } else {
+        showError('Unable to join room');
+      }
+    }
+    
+    function callUser(userId, userName) {
+      if (!window.videoCallManager) {
+        showError('Video call manager not initialized');
+        return;
+      }
+      
+      const displayNameInput = document.getElementById('display-name');
+      const myName = displayNameInput.value.trim();
+      
+      if (!myName) {
+        showError('Please set your display name first');
+        return;
+      }
+      
+      console.log('Initiating call to user:', userId, userName);
+      // Use the WebRTC manager to start a direct call
+      window.videoCallManager.webRTCManager.initiateCall(userId, userName);
+      showStatus(`Calling ${userName}...`);
+    }
+  </script>
 </body>
 </html>
 

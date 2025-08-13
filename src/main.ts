@@ -1,13 +1,11 @@
-// Legacy server.ts - redirects to new modular architecture
-// Import and run the new modular server
 import { serve, serveTls } from "https://deno.land/std@0.224.0/http/server.ts";
-import { ServerConfigManager } from './src/config/ServerConfig.ts';
-import { UserManager } from './src/services/UserManager.ts';
-import { RoomManager } from './src/services/RoomManager.ts';
-import { BroadcastService } from './src/services/BroadcastService.ts';
-import { WebRTCSignalingService } from './src/services/WebRTCSignalingService.ts';
-import { WebSocketHandler } from './src/handlers/WebSocketHandler.ts';
-import { HTTPHandler } from './src/handlers/HTTPHandler.ts';
+import { ServerConfigManager } from './config/ServerConfig.ts';
+import { UserManager } from './services/UserManager.ts';
+import { RoomManager } from './services/RoomManager.ts';
+import { BroadcastService } from './services/BroadcastService.ts';
+import { WebRTCSignalingService } from './services/WebRTCSignalingService.ts';
+import { WebSocketHandler } from './handlers/WebSocketHandler.ts';
+import { HTTPHandler } from './handlers/HTTPHandler.ts';
 
 class VideoServer {
   private userManager: UserManager;
@@ -82,5 +80,7 @@ class VideoServer {
 }
 
 // Start the server
-const server = new VideoServer();
-await server.start();
+if (import.meta.main) {
+  const server = new VideoServer();
+  await server.start();
+}

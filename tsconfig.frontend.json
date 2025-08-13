@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": false,
+    "outDir": "./public/js",
+    "rootDir": "./public/js",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "dom"
+    ]
+  },
+  "include": [
+    "./public/js/**/*.ts"
+  ],
+  "exclude": [
+    "./public/js/**/*.js",
+    "./node_modules"
+  ]
+}
