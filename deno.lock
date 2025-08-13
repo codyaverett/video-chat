@@ -181,6 +181,11 @@
     "dependencies": [
       "jsr:@db/sqlite@0.11",
       "jsr:@std/assert@1"
-    ]
+    ],
+    "packageJson": {
+      "dependencies": [
+        "npm:ws@^8.18.3"
+      ]
+    }
   }
 }

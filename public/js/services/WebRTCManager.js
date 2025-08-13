@@ -36,6 +36,7 @@ export class WebRTCManager {
             const audioTrack = this.localStream.getAudioTracks()[0];
             if (audioTrack) {
                 audioTrack.enabled = enabled;
+                console.log('🎤', enabled ? 'Audio enabled' : 'Audio muted');
             }
         }
     }
@@ -45,8 +46,37 @@ export class WebRTCManager {
             const videoTrack = this.localStream.getVideoTracks()[0];
             if (videoTrack) {
                 videoTrack.enabled = enabled;
+                console.log('📹', enabled ? 'Video enabled' : 'Video disabled');
             }
         }
+    }
+
+    isAudioEnabled() {
+        if (this.localStream) {
+            const audioTrack = this.localStream.getAudioTracks()[0];
+            return audioTrack ? audioTrack.enabled : false;
+        }
+        return false;
+    }
+
+    isVideoEnabled() {
+        if (this.localStream) {
+            const videoTrack = this.localStream.getVideoTracks()[0];
+            return videoTrack ? videoTrack.enabled : false;
+        }
+        return false;
+    }
+
+    toggleAudio() {
+        const currentState = this.isAudioEnabled();
+        this.enableAudio(!currentState);
+        return !currentState;
+    }
+
+    toggleVideo() {
+        const currentState = this.isVideoEnabled();
+        this.enableVideo(!currentState);
+        return !currentState;
     }
 
     on(event, callback) {
@@ -231,12 +261,6 @@ export class WebRTCManager {
         if (this.peerConnection) {
             this.peerConnection.close();
             this.peerConnection = null;
-        }
-        
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo) {
-            remoteVideo.srcObject = null;
-            remoteVideo.style.display = 'none';
         }
         
         this.currentCall = null;

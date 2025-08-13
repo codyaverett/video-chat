@@ -11,6 +11,7 @@ export type MessageType =
   | 'call-user'
   | 'make-answer'
   | 'ice-candidate'
+  | 'end-call'
   | 'update-user-list'
   | 'media-states-update'
   | 'room-list-update'
@@ -19,7 +20,8 @@ export type MessageType =
   | 'user-joined-room'
   | 'user-left-room'
   | 'call-made'
-  | 'answer-made';
+  | 'answer-made'
+  | 'call-state-update';
 
 export interface BaseMessage {
   type: MessageType;
@@ -97,6 +99,11 @@ export interface IceCandidateMessage extends BaseMessage {
   to: string;
 }
 
+export interface EndCallMessage extends BaseMessage {
+  type: 'end-call';
+  otherUserId?: string;
+}
+
 export type IncomingMessage = 
   | SetDisplayNameMessage
   | MediaStateChangeMessage
@@ -108,7 +115,8 @@ export type IncomingMessage =
   | WebRTCIceCandidateMessage
   | CallUserMessage
   | MakeAnswerMessage
-  | IceCandidateMessage;
+  | IceCandidateMessage
+  | EndCallMessage;
 
 export interface OutgoingMessage extends BaseMessage {
   [key: string]: any;

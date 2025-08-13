@@ -40,11 +40,43 @@ export class UIManager {
         }
     }
 
-    setRemoteVideo(stream) {
+    setRemoteVideo(stream, userName) {
         const remoteVideo = document.getElementById('remote-video');
+        const remoteWrapper = document.getElementById('legacy-remote-wrapper');
+        const remoteUsername = document.getElementById('remote-username');
+        
         if (remoteVideo) {
             remoteVideo.srcObject = stream;
             remoteVideo.style.display = 'block';
+            console.log('📹 Remote video stream set');
+        }
+        
+        // Update remote username if provided
+        if (remoteUsername && userName) {
+            remoteUsername.textContent = userName;
+        }
+        
+        // Show the remote video wrapper when we receive a stream
+        if (remoteWrapper) {
+            remoteWrapper.style.display = 'block';
+            console.log('👥 Remote video wrapper shown');
+        }
+    }
+
+    clearRemoteVideo() {
+        const remoteVideo = document.getElementById('remote-video');
+        const remoteWrapper = document.getElementById('legacy-remote-wrapper');
+        
+        if (remoteVideo) {
+            remoteVideo.srcObject = null;
+            remoteVideo.style.display = 'none';
+            console.log('📹 Remote video stream cleared');
+        }
+        
+        // Hide the remote video wrapper when call ends
+        if (remoteWrapper) {
+            remoteWrapper.style.display = 'none';
+            console.log('👥 Remote video wrapper hidden');
         }
     }
 
@@ -103,17 +135,19 @@ export class UIManager {
             listItem.className = 'room-item';
             listItem.innerHTML = `
                 <div class="room-info">
-                    <span class="room-name">${room.name}</span>
-                    <span class="participant-count">${room.participantCount} participant${room.participantCount !== 1 ? 's' : ''}</span>
+                    <div class="room-details">
+                        <div class="room-title">${room.name}</div>
+                        <div class="room-meta">${room.participantCount} participant${room.participantCount !== 1 ? 's' : ''}</div>
+                    </div>
+                    <button class="join-btn" onclick="joinRoom('${room.id}')">Join</button>
                 </div>
-                <button class="join-btn" onclick="joinRoom('${room.id}')">Join</button>
             `;
             roomList.appendChild(listItem);
         });
     }
 
-    updateUserList(users) {
-        console.log('🔄 Updating user list with:', users);
+    updateUserList(users, currentUserId) {
+        console.log('🔄 Updating user list with:', users, 'Current user ID:', currentUserId);
         const userList = document.getElementById('user-list');
         const emptyMessage = document.querySelector('.user-list .no-users');
         
@@ -125,7 +159,10 @@ export class UIManager {
         // Clear existing user list
         userList.innerHTML = '';
         
-        if (!users || users.length === 0) {
+        // Filter out current user to prevent self-calling
+        const otherUsers = users ? users.filter(user => user.id !== currentUserId) : [];
+        
+        if (otherUsers.length === 0) {
             // Show empty message if it exists
             if (emptyMessage) {
                 emptyMessage.style.display = 'block';
@@ -138,8 +175,8 @@ export class UIManager {
             emptyMessage.style.display = 'none';
         }
 
-        // Add users to the list
-        users.forEach(user => {
+        // Add other users to the list (excluding current user)
+        otherUsers.forEach(user => {
             console.log('📋 Adding user to list:', user);
             const listItem = document.createElement('li');
             listItem.className = 'user-item';
@@ -160,6 +197,8 @@ export class UIManager {
             userList.appendChild(listItem);
             console.log('✅ User added to list:', user.name);
         });
+        
+        console.log(`📊 User list updated: ${otherUsers.length} other users (filtered out current user)`);
     }
 
     on(event, callback) {
@@ -173,6 +212,80 @@ export class UIManager {
         if (this.eventListeners[event]) {
             this.eventListeners[event].forEach(callback => callback(data));
         }
+    }
+
+    addGroupCallVideo(userId, userName, stream) {
+        console.log(`📹 Adding group call video for ${userName}`);
+        
+        const remoteVideosContainer = document.getElementById('remote-videos-container');
+        if (!remoteVideosContainer) {
+            console.error('Remote videos container not found');
+            return;
+        }
+        
+        // Remove existing video if it exists
+        this.removeGroupCallVideo(userId);
+        
+        // Create video wrapper
+        const videoWrapper = document.createElement('div');
+        videoWrapper.className = 'video-wrapper';
+        videoWrapper.id = `group-video-${userId}`;
+        
+        // Create video element
+        const videoElement = document.createElement('video');
+        videoElement.autoplay = true;
+        videoElement.playsinline = true;
+        videoElement.srcObject = stream;
+        
+        // Create username overlay
+        const usernameOverlay = document.createElement('div');
+        usernameOverlay.className = 'username-overlay';
+        usernameOverlay.textContent = userName;
+        
+        // Add media controls placeholder (future enhancement)
+        const videoControls = document.createElement('div');
+        videoControls.className = 'video-controls';
+        
+        // Assemble the video wrapper
+        videoWrapper.appendChild(videoElement);
+        videoWrapper.appendChild(usernameOverlay);
+        videoWrapper.appendChild(videoControls);
+        
+        // Add to container
+        remoteVideosContainer.appendChild(videoWrapper);
+        
+        // Show video container if not already visible
+        const videoContainer = document.getElementById('video-container');
+        if (videoContainer) {
+            videoContainer.style.display = 'grid';
+            // Switch to group call layout
+            videoContainer.classList.add('group-call');
+        }
+        
+        console.log(`✅ Added group video for ${userName}`);
+    }
+
+    removeGroupCallVideo(userId) {
+        const videoElement = document.getElementById(`group-video-${userId}`);
+        if (videoElement) {
+            videoElement.remove();
+            console.log(`🗑️ Removed group video for ${userId}`);
+        }
+    }
+
+    clearGroupCallVideos() {
+        const remoteVideosContainer = document.getElementById('remote-videos-container');
+        if (remoteVideosContainer) {
+            remoteVideosContainer.innerHTML = '';
+        }
+        
+        // Remove group call layout
+        const videoContainer = document.getElementById('video-container');
+        if (videoContainer) {
+            videoContainer.classList.remove('group-call');
+        }
+        
+        console.log('🧹 Cleared all group call videos');
     }
 
     cleanup() {

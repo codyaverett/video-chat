@@ -708,6 +708,7 @@
       <div class="video-section">
         <div class="name-setup" id="name-setup">
           <h3>👋 Set Your Display Name</h3>
+          <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Required to join rooms and make calls</p>
           <div class="name-input-group">
             <input type="text" id="display-name" placeholder="Enter your name..." maxlength="20">
             <button id="join-chat-btn">Join Chat</button>
@@ -930,10 +931,62 @@
       }
     }
     
+    function updateMediaButtonStates() {
+      if (window.videoCallManager && window.videoCallManager.mediaController) {
+        const isAudioEnabled = window.videoCallManager.mediaController.isAudioEnabled();
+        const isVideoEnabled = window.videoCallManager.mediaController.isVideoEnabled();
+        
+        // Update audio buttons
+        const audioButtons = [document.getElementById('toggle-audio'), document.getElementById('local-audio-btn')];
+        audioButtons.forEach(btn => {
+          if (btn) {
+            if (isAudioEnabled) {
+              btn.classList.remove('muted');
+              btn.title = 'Mute Microphone';
+              btn.textContent = '🎤';
+            } else {
+              btn.classList.add('muted');
+              btn.title = 'Unmute Microphone';
+              btn.textContent = '🔇';
+            }
+          }
+        });
+        
+        // Update video buttons
+        const videoButtons = [document.getElementById('toggle-video'), document.getElementById('local-video-btn')];
+        const localVideo = document.getElementById('local-video');
+        
+        videoButtons.forEach(btn => {
+          if (btn) {
+            if (isVideoEnabled) {
+              btn.classList.remove('video-off');
+              btn.title = 'Turn Off Camera';
+              btn.textContent = '📹';
+            } else {
+              btn.classList.add('video-off');
+              btn.title = 'Turn On Camera';
+              btn.textContent = '🚫';
+            }
+          }
+        });
+        
+        // Update local video visibility
+        if (localVideo) {
+          localVideo.style.opacity = isVideoEnabled ? '1' : '0.3';
+        }
+      }
+    }
+    
     function handleSetDisplayName() {
       const nameInput = document.getElementById('display-name');
       const name = nameInput.value.trim();
       if (name && window.videoCallManager) {
+        // Send the display name to server
+        window.videoCallManager.webSocketClient.send({
+          type: 'set-displayname',
+          name: name
+        });
+        
         // Show media controls and hide name setup
         document.getElementById('name-setup').style.display = 'none';
         document.getElementById('media-controls').style.display = 'block';
@@ -946,6 +999,17 @@
           localUsername.textContent = name;
         }
         
+        // Initialize button states to match actual media state
+        setTimeout(updateMediaButtonStates, 500); // Small delay to ensure media is initialized
+        
+        // If there was a pending room join, handle it now
+        if (window.pendingRoomJoin) {
+          setTimeout(() => {
+            joinRoom(window.pendingRoomJoin);
+            window.pendingRoomJoin = null;
+          }, 1000); // Wait a bit for authentication to complete
+        }
+        
         console.log('Display name set to:', name);
       } else {
         showError('Please enter a valid name');
@@ -954,23 +1018,56 @@
     
     function handleToggleAudio() {
       if (window.videoCallManager && window.videoCallManager.mediaController) {
-        // Toggle audio logic would go here
-        const btn = document.getElementById('toggle-audio') || document.getElementById('local-audio-btn');
-        if (btn) {
-          btn.classList.toggle('muted');
-          console.log('Audio toggled');
-        }
+        const isEnabled = window.videoCallManager.mediaController.toggleAudio();
+        
+        // Update both possible button elements
+        const buttons = [document.getElementById('toggle-audio'), document.getElementById('local-audio-btn')];
+        buttons.forEach(btn => {
+          if (btn) {
+            if (isEnabled) {
+              btn.classList.remove('muted');
+              btn.title = 'Mute Microphone';
+              btn.textContent = '🎤';
+            } else {
+              btn.classList.add('muted');
+              btn.title = 'Unmute Microphone';
+              btn.textContent = '🔇';
+            }
+          }
+        });
+        
+        console.log('Audio', isEnabled ? 'enabled' : 'muted');
       }
     }
     
     function handleToggleVideo() {
       if (window.videoCallManager && window.videoCallManager.mediaController) {
-        // Toggle video logic would go here
-        const btn = document.getElementById('toggle-video') || document.getElementById('local-video-btn');
-        if (btn) {
-          btn.classList.toggle('video-off');
-          console.log('Video toggled');
+        const isEnabled = window.videoCallManager.mediaController.toggleVideo();
+        
+        // Update both possible button elements
+        const buttons = [document.getElementById('toggle-video'), document.getElementById('local-video-btn')];
+        const localVideo = document.getElementById('local-video');
+        
+        buttons.forEach(btn => {
+          if (btn) {
+            if (isEnabled) {
+              btn.classList.remove('video-off');
+              btn.title = 'Turn Off Camera';
+              btn.textContent = '📹';
+            } else {
+              btn.classList.add('video-off');
+              btn.title = 'Turn On Camera';
+              btn.textContent = '🚫';
+            }
+          }
+        });
+        
+        // Update local video visibility
+        if (localVideo) {
+          localVideo.style.opacity = isEnabled ? '1' : '0.3';
         }
+        
+        console.log('Video', isEnabled ? 'enabled' : 'disabled');
       }
     }
     
@@ -1011,17 +1108,40 @@
     }
     
     function joinRoom(roomId) {
+      console.log('Joining room:', roomId);
       const displayNameInput = document.getElementById('display-name');
-      const userName = displayNameInput.value.trim();
+      const userName = displayNameInput ? displayNameInput.value.trim() : '';
       
       if (!userName) {
         showError('Please set your display name first');
+        // Show the name setup section if hidden
+        const nameSetup = document.getElementById('name-setup');
+        if (nameSetup) {
+          nameSetup.style.display = 'block';
+          displayNameInput.focus();
+        }
+        // Store the room ID for after the user sets their name
+        window.pendingRoomJoin = roomId;
         return;
       }
       
       if (roomId && window.videoCallManager) {
         console.log('Joining room:', roomId, 'as user:', userName);
-        window.videoCallManager.roomController.joinRoom(roomId, userName);
+        // Check if user is already authenticated
+        if (window.videoCallManager.currentUser && window.videoCallManager.currentUser.name) {
+          // User is authenticated, join directly
+          window.videoCallManager.roomController.joinRoom(roomId, userName);
+        } else {
+          // User needs to authenticate first
+          window.videoCallManager.webSocketClient.send({
+            type: 'set-displayname',
+            name: userName
+          });
+          // Store the room ID to join after authentication
+          window.pendingRoomJoin = roomId;
+          // Also trigger the display name setup
+          handleSetDisplayName();
+        }
       } else {
         showError('Unable to join room');
       }
@@ -1064,6 +1184,15 @@
       }
       
       console.log('Ending call');
+      
+      // Notify server about call end
+      if (activeCall) {
+        window.videoCallManager.webSocketClient.send({
+          type: 'end-call',
+          otherUserId: activeCall.userId
+        });
+      }
+      
       window.videoCallManager.webRTCManager.endCall();
       activeCall = null;
       updateCallUI();
@@ -1077,12 +1206,33 @@
       
       if (activeCall) {
         callStatusBar.style.display = 'block';
-        const statusText = activeCall.type === 'outgoing' 
-          ? `Calling ${activeCall.userName}...` 
-          : `On call with ${activeCall.userName}`;
+        let statusText;
+        if (activeCall.isConnected) {
+          statusText = `📞 On call with ${activeCall.userName}`;
+        } else if (activeCall.type === 'outgoing') {
+          statusText = `📞 Calling ${activeCall.userName}...`;
+        } else {
+          statusText = `📞 Incoming call from ${activeCall.userName}`;
+        }
         callStatusText.textContent = statusText;
+        
+        // Show video container when call is active
+        const videoContainer = document.getElementById('video-container');
+        const remoteVideoWrapper = document.getElementById('legacy-remote-wrapper');
+        if (videoContainer) {
+          videoContainer.style.display = 'grid';
+        }
+        if (remoteVideoWrapper && activeCall.isConnected) {
+          remoteVideoWrapper.style.display = 'block';
+        }
       } else {
         callStatusBar.style.display = 'none';
+        
+        // Hide remote video when no call
+        const remoteVideoWrapper = document.getElementById('legacy-remote-wrapper');
+        if (remoteVideoWrapper) {
+          remoteVideoWrapper.style.display = 'none';
+        }
       }
       
       // Update user list to show call states
@@ -1132,12 +1282,40 @@
       }, 100);
     }
 
+    // Handle call state updates from server
+    function updateCallUIFromServer(data) {
+      console.log('📞 Updating call UI from server:', data);
+      
+      if (data.state === 'calling' || data.state === 'receiving' || data.state === 'connected') {
+        activeCall = {
+          userId: data.otherUserId,
+          userName: data.otherUserName,
+          type: data.state === 'calling' ? 'outgoing' : 'incoming',
+          isConnected: data.state === 'connected'
+        };
+        updateCallUI();
+      } else if (data.state === 'ended') {
+        // Only clear our call state if it matches the ended call
+        if (activeCall && activeCall.userId === data.otherUserId) {
+          activeCall = null;
+          updateCallUI();
+          showStatus(`Call with ${data.otherUserName} ended`);
+          
+          // Clear remote video when call ends
+          if (window.videoCallManager && window.videoCallManager.uiManager) {
+            window.videoCallManager.uiManager.clearRemoteVideo();
+          }
+        }
+      }
+    }
+
     // Make functions globally accessible for onclick handlers
     window.callUser = callUser;
     window.endCall = endCall;
     window.joinRoom = joinRoom;
     window.showError = showError;
     window.showStatus = showStatus;
+    window.updateCallUIFromServer = updateCallUIFromServer;
   </script>
 </body>
 </html>

@@ -28,10 +28,16 @@ export class UserManager implements IUserManager {
   addUser(user: User): void {
     this.users.set(user.id, user);
     
+    // Validate user has a proper name before adding
+    if (!user.name || user.name.trim() === '' || user.name.toLowerCase().includes('anonymous')) {
+      console.log(`❌ Rejected user with invalid name: ${user.id}, name: ${user.name}`);
+      return;
+    }
+
     // Persist to database
     const userRecord: UserRecord = {
       id: user.id,
-      name: user.name || 'Anonymous',
+      name: user.name,
       currentRoom: user.currentRoom,
       lastSeen: Date.now(),
       isOnline: true

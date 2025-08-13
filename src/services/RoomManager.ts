@@ -18,6 +18,10 @@ export class RoomManager implements IRoomManager {
   createRoom(roomName: string, createdBy: string): Room {
     const roomId = crypto.randomUUID();
     const room = new RoomModel(roomId, roomName, createdBy);
+    
+    // Automatically add the creator as the first participant
+    room.addParticipant(createdBy);
+    
     this.rooms.set(roomId, room);
     
     // Persist to database
@@ -29,8 +33,9 @@ export class RoomManager implements IRoomManager {
       lastActivity: Date.now()
     };
     this.db.createRoom(roomRecord);
+    this.db.addParticipant(roomId, createdBy);
     
-    console.log(`🏠 Room created: ${roomName} (${roomId}) by ${createdBy}`);
+    console.log(`🏠 Room created: ${roomName} (${roomId}) by ${createdBy} (creator auto-joined)`);
     return room;
   }
 

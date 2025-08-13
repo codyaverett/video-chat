@@ -37,6 +37,52 @@ export class MediaController {
         }
     }
 
+    toggleAudio() {
+        if (this.webRTCManager) {
+            const newState = this.webRTCManager.toggleAudio();
+            
+            // Send media state change to server
+            if (this.webSocketClient) {
+                this.webSocketClient.send({
+                    type: 'media-state-change',
+                    audioEnabled: newState
+                });
+            }
+            
+            return newState;
+        }
+        return false;
+    }
+
+    toggleVideo() {
+        if (this.webRTCManager) {
+            const newState = this.webRTCManager.toggleVideo();
+            
+            // Send media state change to server
+            if (this.webSocketClient) {
+                this.webSocketClient.send({
+                    type: 'media-state-change',
+                    videoEnabled: newState
+                });
+            }
+            
+            return newState;
+        }
+        return false;
+    }
+
+    isAudioEnabled() {
+        return this.webRTCManager ? this.webRTCManager.isAudioEnabled() : false;
+    }
+
+    isVideoEnabled() {
+        return this.webRTCManager ? this.webRTCManager.isVideoEnabled() : false;
+    }
+
+    getLocalStream() {
+        return this.webRTCManager ? this.webRTCManager.getLocalStream() : null;
+    }
+
     cleanup() {
         this.eventListeners = {};
     }
