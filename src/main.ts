@@ -6,6 +6,7 @@ import { BroadcastService } from './services/BroadcastService.ts';
 import { WebRTCSignalingService } from './services/WebRTCSignalingService.ts';
 import { WebSocketHandler } from './handlers/WebSocketHandler.ts';
 import { HTTPHandler } from './handlers/HTTPHandler.ts';
+import { DatabaseService } from './services/DatabaseService.ts';
 
 class VideoServer {
   private userManager: UserManager;
@@ -14,11 +15,15 @@ class VideoServer {
   private signalingService: WebRTCSignalingService;
   private webSocketHandler: WebSocketHandler;
   private httpHandler: HTTPHandler;
+  private db: DatabaseService;
 
   constructor() {
+    // Initialize database service
+    this.db = new DatabaseService();
+    
     // Initialize services with dependency injection
-    this.roomManager = new RoomManager();
-    this.userManager = new UserManager(this.roomManager);
+    this.roomManager = new RoomManager(this.db);
+    this.userManager = new UserManager(this.roomManager, this.db);
     this.broadcastService = new BroadcastService(this.userManager, this.roomManager);
     this.signalingService = new WebRTCSignalingService(
       this.userManager, 
@@ -32,10 +37,19 @@ class VideoServer {
       this.signalingService
     );
     this.httpHandler = new HTTPHandler();
+
+    // Set up periodic maintenance
+    setInterval(() => {
+      this.db.runMaintenance();
+    }, 5 * 60 * 1000); // Run every 5 minutes
+    
+    console.log('🗄️ Database service initialized');
   }
 
   private async handleRequest(req: Request): Promise<Response> {
     const { pathname } = new URL(req.url);
+    
+    console.log(`📥 ${req.method} ${pathname} from ${req.headers.get('user-agent')?.substring(0, 50) || 'Unknown'}`);
     
     // Handle WebSocket upgrade requests
     if (pathname === "/ws" && req.headers.get("upgrade") === "websocket") {

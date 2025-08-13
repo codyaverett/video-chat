@@ -57,27 +57,30 @@ export class WebRTCSignalingService implements ISignalingService {
 
   handleLegacyCallUser(message: CallUserMessage, fromUserId: string): void {
     const callingUser = this.userManager.getUser(fromUserId);
+    console.log(`🔄 Relaying call from ${fromUserId} to ${message.to}`);
     this.broadcastService.broadcastToUser(message.to, {
       type: "call-made",
       offer: message.offer,
-      socket: fromUserId,
-      callerName: callingUser?.name || 'Unknown User'
+      from: fromUserId,
+      fromName: callingUser?.name || 'Unknown User'
     });
   }
 
   handleLegacyMakeAnswer(message: MakeAnswerMessage, fromUserId: string): void {
+    console.log(`🔄 Relaying answer from ${fromUserId} to ${message.to}`);
     this.broadcastService.broadcastToUser(message.to, {
       type: "answer-made",
       answer: message.answer,
-      socket: fromUserId,
+      from: fromUserId,
     });
   }
 
   handleLegacyIceCandidate(message: IceCandidateMessage, fromUserId: string): void {
+    console.log(`🔄 Relaying ICE candidate from ${fromUserId} to ${message.to}`);
     this.broadcastService.broadcastToUser(message.to, {
       type: "ice-candidate",
       candidate: message.candidate,
-      socket: fromUserId,
+      from: fromUserId,
     });
   }
 }

@@ -6,14 +6,10 @@ export class WebSocketClient {
 
     async connect() {
         try {
-            // Get server config to determine correct WebSocket URL
-            const response = await fetch('/config');
-            const config = await response.json();
-            
+            // Since WebSocket is integrated with HTTP server, use same host/port
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsHost = window.location.hostname;
-            const wsPort = config.wsPort || window.location.port;
-            const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}/ws`;
+            const wsHost = window.location.host; // includes port if non-standard
+            const wsUrl = `${wsProtocol}//${wsHost}/ws`;
             
             console.log('Connecting to WebSocket:', wsUrl);
             
@@ -28,8 +24,9 @@ export class WebSocketClient {
                 
                 this.socket.onerror = (error) => {
                     console.error('WebSocket connection failed:', error);
+                    console.error('Failed URL:', wsUrl);
                     this.emit('error', error);
-                    reject(error);
+                    reject(new Error(`WebSocket connection failed to ${wsUrl}: ${error.message || 'Unknown error'}`));
                 };
                 
                 this.socket.onmessage = (event) => {
@@ -42,8 +39,8 @@ export class WebSocketClient {
                     }
                 };
                 
-                this.socket.onclose = () => {
-                    console.log('WebSocket disconnected');
+                this.socket.onclose = (event) => {
+                    console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
                     this.emit('disconnected');
                 };
             });

@@ -113,12 +113,12 @@ export class UIManager {
     }
 
     updateUserList(users) {
-        console.log('Updating user list with:', users);
+        console.log('🔄 Updating user list with:', users);
         const userList = document.getElementById('user-list');
         const emptyMessage = document.querySelector('.user-list .no-users');
         
         if (!userList) {
-            console.error('User list element not found');
+            console.error('❌ User list element not found!');
             return;
         }
 
@@ -140,17 +140,25 @@ export class UIManager {
 
         // Add users to the list
         users.forEach(user => {
+            console.log('📋 Adding user to list:', user);
             const listItem = document.createElement('li');
             listItem.className = 'user-item';
-            listItem.style.cursor = 'pointer';
             listItem.innerHTML = `
                 <div class="user-info">
-                    <span class="user-name">${user.name || 'Anonymous'}</span>
-                    <span class="user-status">${user.currentRoom ? 'In room' : 'Available'}</span>
+                    <div class="user-details">
+                        <span class="user-name">${user.name || 'Anonymous'}</span>
+                        <span class="user-status ${user.currentRoom ? 'in-room' : 'available'}">${user.currentRoom ? 'In room' : 'Available'}</span>
+                    </div>
+                    <div class="user-actions">
+                        <button class="call-btn primary" onclick="callUser('${user.id}', '${user.name}')">
+                            <span class="call-icon">📞</span>
+                            <span class="call-text">Call</span>
+                        </button>
+                    </div>
                 </div>
-                <button class="call-btn" onclick="callUser('${user.id}', '${user.name}')">📞 Call</button>
             `;
             userList.appendChild(listItem);
+            console.log('✅ User added to list:', user.name);
         });
     }
 

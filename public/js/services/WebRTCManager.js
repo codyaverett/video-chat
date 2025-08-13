@@ -78,7 +78,14 @@ export class WebRTCManager {
 
     async initiateCall(userId, userName) {
         try {
-            console.log('Starting call to:', userId, userName);
+            console.log('📞 Starting call to:', userId, userName);
+            
+            // Ensure we have local stream before calling
+            if (!this.localStream) {
+                console.log('🎥 No local stream, initializing camera...');
+                await this.initializeLocalStream();
+            }
+            
             this.currentCall = { userId, userName, isInitiator: true };
             
             // Create peer connection
@@ -86,16 +93,23 @@ export class WebRTCManager {
             
             // Add local stream to peer connection
             if (this.localStream) {
+                console.log('🎬 Adding local stream tracks to peer connection');
                 this.localStream.getTracks().forEach(track => {
                     this.peerConnection.addTrack(track, this.localStream);
                 });
+            } else {
+                console.error('❌ Failed to get local stream for call');
+                throw new Error('Camera access required for video calls');
             }
             
             // Create offer
+            console.log('🎯 Creating WebRTC offer...');
             const offer = await this.peerConnection.createOffer();
             await this.peerConnection.setLocalDescription(offer);
+            console.log('✅ Offer created and set as local description');
             
             // Send offer to the other user
+            console.log('📤 Sending call offer to user:', userId);
             this.webSocketClient.send({
                 type: 'call-user',
                 offer: offer,
@@ -112,7 +126,14 @@ export class WebRTCManager {
 
     async handleIncomingCall(data) {
         try {
-            console.log('Incoming call from:', data);
+            console.log('📞 Incoming call from:', data.fromName, '(ID:', data.from, ')');
+            
+            // Ensure we have local stream before answering
+            if (!this.localStream) {
+                console.log('🎥 No local stream for incoming call, initializing camera...');
+                await this.initializeLocalStream();
+            }
+            
             this.currentCall = { userId: data.from, userName: data.fromName, isInitiator: false };
             
             // Create peer connection

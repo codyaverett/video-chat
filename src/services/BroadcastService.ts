@@ -52,7 +52,11 @@ export class BroadcastService implements IBroadcastService {
   }
 
   broadcastUserList(): void {
-    const userList = this.userManager.getUserPublicInfo();
+    // Use getOnlineUsers if available (database-backed), otherwise fallback to getUserPublicInfo
+    const userList = 'getOnlineUsers' in this.userManager 
+      ? (this.userManager as any).getOnlineUsers()
+      : this.userManager.getUserPublicInfo();
+    
     this.broadcastToAllUsers({
       type: "update-user-list",
       users: userList,

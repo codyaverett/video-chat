@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-read --allow-env server.ts",
+    "dev": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi server.ts",
     "dev:https": "deno run --allow-net --allow-read --allow-env server.ts",
     "dev:custom": "HTTP_PORT=3000 WS_PORT=3001 deno run --allow-net --allow-read --allow-env server.ts",
     "stop": "pkill -f 'deno.*server.ts' || echo 'No servers running'",
@@ -8,12 +8,14 @@
     "build:frontend": "deno task compile:frontend",
     "compile:frontend": "deno run --allow-read --allow-write --allow-run scripts/compile-frontend.ts",
     "watch:frontend": "deno run --allow-read --allow-write --allow-run scripts/compile-frontend.ts --watch",
+    "clear-anonymous": "deno run --allow-read --allow-write --allow-env --allow-ffi scripts/clear-anonymous-users.ts",
     "test": "deno run --allow-net --allow-read --allow-run tests/run-all-tests.js",
     "test:connection": "deno run --allow-net tests/test-connection.js",
     "test:signaling": "deno run --allow-net tests/test-signaling.js",
     "test:ice": "deno run --allow-net tests/test-ice-candidates.js"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@1"
+    "@std/assert": "jsr:@std/assert@1",
+    "@db/sqlite": "jsr:@db/sqlite@0.11"
   }
 }

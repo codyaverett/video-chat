@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        
+        function addLog(message) {
+            const div = document.createElement('div');
+            div.textContent = `${new Date().toISOString()}: ${message}`;
+            log.appendChild(div);
+            console.log(message);
+        }
+
+        // Test WebSocket connection
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+        addLog(`Attempting to connect to: ${wsUrl}`);
+
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = function(event) {
+            status.textContent = 'Connected!';
+            status.style.color = 'green';
+            addLog('WebSocket connection opened successfully');
+        };
+
+        ws.onerror = function(error) {
+            status.textContent = 'Connection Failed';
+            status.style.color = 'red';
+            addLog(`WebSocket error: ${error}`);
+            addLog(`Error details: ${JSON.stringify(error)}`);
+        };
+
+        ws.onclose = function(event) {
+            status.textContent = 'Connection Closed';
+            status.style.color = 'orange';
+            addLog(`WebSocket closed: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
+        };
+
+        ws.onmessage = function(event) {
+            addLog(`Received message: ${event.data}`);
+        };
+
+        // Send a test message after connection
+        setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({type: 'test', message: 'Hello server!'}));
+                addLog('Test message sent');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

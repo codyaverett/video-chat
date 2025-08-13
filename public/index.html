@@ -479,21 +479,18 @@
     }
     
     .user-item {
-      padding: 15px;
-      margin: 10px 0;
+      padding: 20px;
+      margin: 12px 0;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      border-radius: 12px;
-      cursor: pointer;
+      border-radius: 16px;
       transition: all 0.3s ease;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
     }
     
     .user-item:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
     }
     
     .user-avatar {
@@ -509,12 +506,92 @@
     }
     
     .user-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    
+    .user-details {
       flex: 1;
     }
     
     .user-name {
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 4px;
+      display: block;
+    }
+    
+    .user-status {
+      font-size: 12px;
+      opacity: 0.9;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 12px;
+      display: inline-block;
+    }
+    
+    .user-status.available {
+      background: rgba(76, 175, 80, 0.3);
+      color: #c8e6c9;
+    }
+    
+    .user-status.in-room {
+      background: rgba(255, 152, 0, 0.3);
+      color: #ffcc80;
+    }
+    
+    .user-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .call-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 12px;
       font-weight: 600;
-      margin-bottom: 2px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 80px;
+      justify-content: center;
+    }
+    
+    .call-btn.primary {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .call-btn.primary:hover {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.5);
+      transform: scale(1.05);
+    }
+    
+    .call-btn.danger {
+      background: rgba(244, 67, 54, 0.8);
+      color: white;
+      border: 2px solid rgba(244, 67, 54, 0.6);
+    }
+    
+    .call-btn.danger:hover {
+      background: rgba(244, 67, 54, 1);
+      border-color: rgba(244, 67, 54, 0.8);
+      transform: scale(1.05);
+    }
+    
+    .call-icon {
+      font-size: 16px;
+    }
+    
+    .call-text {
+      font-weight: 600;
     }
     
     .user-id {
@@ -540,6 +617,57 @@
       background: rgba(0, 0, 0, 0.02);
       border-radius: 12px;
       border: 2px dashed #ddd;
+    }
+    
+    .call-status-bar {
+      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+    
+    .call-status-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+    }
+    
+    .call-status-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .call-status-info::before {
+      content: "🔊";
+      font-size: 18px;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 50% { opacity: 1; }
+      25%, 75% { opacity: 0.6; }
+    }
+    
+    .call-end-btn {
+      background: rgba(244, 67, 54, 0.9);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .call-end-btn:hover {
+      background: rgba(244, 67, 54, 1);
+      transform: scale(1.05);
     }
     
     @media (max-width: 768px) {
@@ -668,6 +796,20 @@
             👥 Available Users
             <span class="user-count" id="user-count">0</span>
           </h3>
+          
+          <!-- Call Status Bar -->
+          <div id="call-status-bar" class="call-status-bar" style="display: none;">
+            <div class="call-status-content">
+              <div class="call-status-info">
+                <span id="call-status-text">On call with...</span>
+              </div>
+              <button class="call-end-btn" onclick="endCall()">
+                <span>📞</span>
+                End Call
+              </button>
+            </div>
+          </div>
+          
           <ul id="user-list"></ul>
           <div id="no-users" class="no-users">
             <p>🔍 No other users online</p>
@@ -729,6 +871,15 @@
           errorEl.style.display = 'none';
         }, 5000);
       }
+    }
+
+    function showStatus(message) {
+      const statusEl = document.getElementById('connection-status');
+      if (statusEl) {
+        statusEl.textContent = `🔌 ${message}`;
+        statusEl.className = 'status-compact connected';
+      }
+      console.log('Status:', message);
     }
 
     // Set up event listeners
@@ -876,9 +1027,17 @@
       }
     }
     
+    // Track active call state
+    let activeCall = null;
+
     function callUser(userId, userName) {
       if (!window.videoCallManager) {
         showError('Video call manager not initialized');
+        return;
+      }
+      
+      if (activeCall) {
+        showError('You are already on a call. End the current call first.');
         return;
       }
       
@@ -891,10 +1050,94 @@
       }
       
       console.log('Initiating call to user:', userId, userName);
+      activeCall = { userId, userName, type: 'outgoing' };
+      updateCallUI();
+      
       // Use the WebRTC manager to start a direct call
       window.videoCallManager.webRTCManager.initiateCall(userId, userName);
       showStatus(`Calling ${userName}...`);
     }
+
+    function endCall() {
+      if (!window.videoCallManager) {
+        return;
+      }
+      
+      console.log('Ending call');
+      window.videoCallManager.webRTCManager.endCall();
+      activeCall = null;
+      updateCallUI();
+      showStatus('Call ended');
+    }
+
+    function updateCallUI() {
+      // Update call status bar
+      const callStatusBar = document.getElementById('call-status-bar');
+      const callStatusText = document.getElementById('call-status-text');
+      
+      if (activeCall) {
+        callStatusBar.style.display = 'block';
+        const statusText = activeCall.type === 'outgoing' 
+          ? `Calling ${activeCall.userName}...` 
+          : `On call with ${activeCall.userName}`;
+        callStatusText.textContent = statusText;
+      } else {
+        callStatusBar.style.display = 'none';
+      }
+      
+      // Update user list to show call states
+      setTimeout(() => {
+        if (window.videoCallManager && window.videoCallManager.uiManager) {
+          // Force refresh of user list with current call state
+          const userList = document.getElementById('user-list');
+          if (userList) {
+            const userItems = userList.querySelectorAll('.user-item');
+            userItems.forEach(item => {
+              const callBtn = item.querySelector('.call-btn');
+              if (callBtn && activeCall) {
+                const userIdMatch = callBtn.getAttribute('onclick') ? callBtn.getAttribute('onclick').match(/'([^']+)'/) : null;
+                if (userIdMatch) {
+                  const userId = userIdMatch[1];
+                  if (userId === activeCall.userId) {
+                    // This is the user we're calling/called - hide the button (status bar shows end call)
+                    callBtn.style.display = 'none';
+                  } else {
+                    // Disable other call buttons
+                    callBtn.disabled = true;
+                    callBtn.style.opacity = '0.5';
+                    callBtn.style.cursor = 'not-allowed';
+                  }
+                }
+              } else if (callBtn && !activeCall) {
+                // Reset to normal state
+                const match = callBtn.getAttribute('onclick') ? callBtn.getAttribute('onclick').match(/'([^']+)',\s*'([^']+)'/) : null;
+                if (match) {
+                  const userId = match[1];
+                  const userName = match[2];
+                  callBtn.className = 'call-btn primary';
+                  callBtn.innerHTML = `
+                    <span class="call-icon">📞</span>
+                    <span class="call-text">Call</span>
+                  `;
+                  callBtn.setAttribute('onclick', `callUser('${userId}', '${userName}')`);
+                  callBtn.disabled = false;
+                  callBtn.style.opacity = '';
+                  callBtn.style.cursor = '';
+                  callBtn.style.display = '';
+                }
+              }
+            });
+          }
+        }
+      }, 100);
+    }
+
+    // Make functions globally accessible for onclick handlers
+    window.callUser = callUser;
+    window.endCall = endCall;
+    window.joinRoom = joinRoom;
+    window.showError = showError;
+    window.showStatus = showStatus;
   </script>
 </body>
 </html>

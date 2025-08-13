@@ -1,13 +1,34 @@
 import { IRoomManager } from '../core/interfaces/IRoomManager.ts';
 import { Room, RoomModel, RoomInfo, RoomDetails } from '../core/models/Room.ts';
+import { DatabaseService, RoomRecord } from './DatabaseService.ts';
 
 export class RoomManager implements IRoomManager {
   private rooms: Map<string, Room> = new Map();
+  private db: DatabaseService;
+
+  constructor(db?: DatabaseService) {
+    this.db = db || new DatabaseService();
+    
+    // Set up periodic cleanup
+    setInterval(() => {
+      this.cleanupInactiveRooms();
+    }, 5 * 60 * 1000); // Run every 5 minutes
+  }
 
   createRoom(roomName: string, createdBy: string): Room {
     const roomId = crypto.randomUUID();
     const room = new RoomModel(roomId, roomName, createdBy);
     this.rooms.set(roomId, room);
+    
+    // Persist to database
+    const roomRecord: RoomRecord = {
+      id: roomId,
+      name: roomName,
+      createdBy: createdBy,
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    };
+    this.db.createRoom(roomRecord);
     
     console.log(`🏠 Room created: ${roomName} (${roomId}) by ${createdBy}`);
     return room;
@@ -17,6 +38,10 @@ export class RoomManager implements IRoomManager {
     const room = this.rooms.get(roomId);
     if (room) {
       this.rooms.delete(roomId);
+      
+      // Remove from database
+      this.db.deleteRoom(roomId);
+      
       console.log(`🗑️ Room deleted: ${room.name} (${roomId})`);
       return true;
     }
@@ -55,6 +80,10 @@ export class RoomManager implements IRoomManager {
       } else {
         room.participants.add(userId);
       }
+      
+      // Update database
+      this.db.addParticipant(roomId, userId);
+      
       console.log(`🚪 User ${userId} joined room: ${room.name}`);
       return room;
     }
@@ -66,17 +95,19 @@ export class RoomManager implements IRoomManager {
     if (room) {
       if (room instanceof RoomModel) {
         room.removeParticipant(userId);
-        if (room.isEmpty()) {
-          this.deleteRoom(roomId);
-          return true;
-        }
       } else {
         room.participants.delete(userId);
-        if (room.participants.size === 0) {
-          this.deleteRoom(roomId);
-          return true;
-        }
       }
+      
+      // Update database
+      this.db.removeParticipant(roomId, userId);
+      
+      const isEmpty = room instanceof RoomModel ? room.isEmpty() : room.participants.size === 0;
+      if (isEmpty) {
+        this.deleteRoom(roomId);
+        return true;
+      }
+      
       console.log(`🚪 User ${userId} left room: ${room.name}`);
     }
     return false;
@@ -120,5 +151,27 @@ export class RoomManager implements IRoomManager {
     emptyRooms.forEach(roomId => {
       this.deleteRoom(roomId);
     });
+  }
+
+  private cleanupInactiveRooms(): void {
+    const inactiveRoomIds = this.db.cleanupInactiveRooms();
+    
+    // Remove from memory
+    inactiveRoomIds.forEach(roomId => {
+      const room = this.rooms.get(roomId);
+      if (room) {
+        this.rooms.delete(roomId);
+        console.log(`🧹 Removed inactive room from memory: ${room.name} (${roomId})`);
+      }
+    });
+  }
+
+  getRoomStats(): { totalRooms: number; activeRooms: number; totalParticipants: number } {
+    const dbStats = this.db.getStats();
+    return {
+      totalRooms: dbStats.rooms,
+      activeRooms: this.rooms.size,
+      totalParticipants: dbStats.totalParticipants
+    };
   }
 }

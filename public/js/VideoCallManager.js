@@ -76,6 +76,12 @@ export class VideoCallManager {
             this.uiManager.showStatus(`Incoming call from ${data.userName}`);
             // Auto-accept for now - could add UI for accept/reject
             console.log(`📞 Incoming call from ${data.userName}`);
+            
+            // Set incoming call state
+            if (window.activeCall === null) {
+              window.activeCall = { userId: data.userId, userName: data.userName, type: 'incoming' };
+              if (window.updateCallUI) window.updateCallUI();
+            }
         });
 
         this.webRTCManager.on('call-connected', (data) => {
@@ -84,10 +90,20 @@ export class VideoCallManager {
 
         this.webRTCManager.on('call-ended', () => {
             this.uiManager.showStatus('Call ended');
+            // Clear call state
+            if (window.activeCall) {
+              window.activeCall = null;
+              if (window.updateCallUI) window.updateCallUI();
+            }
         });
 
         this.webRTCManager.on('call-error', (data) => {
             this.uiManager.showError(`Call error: ${data.error}`);
+            // Clear call state on error
+            if (window.activeCall) {
+                window.activeCall = null;
+                if (window.updateCallUI) window.updateCallUI();
+            }
         });
 
         this.webRTCManager.on('remote-stream', (stream) => {
